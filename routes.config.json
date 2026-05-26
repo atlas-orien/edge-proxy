@@ -1,14 +1,4 @@
 {
-	"routes": {
-		"api": {
-			"target": "http://192.168.1.1:23949"
-		},
-		"file": {
-			"target": "http://192.168.1.3:13949"
-		},
-		"auth": {
-			"target": "http://192.168.1.4:8080",
-			"stripPrefix": false
-		}
-	}
+	"ip": "192.168.1.100",
+	"port": 18080
 }

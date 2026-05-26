@@ -1,6 +1,10 @@
-import { loadRoutes, type NormalizedRoute } from "./config";
+import { loadConfig, type NormalizedTarget } from "./config";
 
-const routes = loadRoutes();
+const defaultConfig = loadConfig();
+
+export type ProxyWorker = ExportedHandler<Env> & {
+	fetch: NonNullable<ExportedHandler<Env>["fetch"]>;
+};
 
 function textResponse(message: string, status: number): Response {
 	return new Response(message, {
@@ -11,21 +15,14 @@ function textResponse(message: string, status: number): Response {
 	});
 }
 
-function buildProxyUrl(requestUrl: URL, route: NormalizedRoute): URL {
-	const upstreamUrl = new URL(route.target.toString());
+function buildProxyUrl(requestUrl: URL, target: NormalizedTarget): URL {
+	const upstreamUrl = new URL(target.url.toString());
 	const pathSegments = requestUrl.pathname.split("/").filter(Boolean);
-	const targetSegments = route.stripPrefix ? pathSegments.slice(1) : pathSegments;
+	const targetSegments = target.stripPrefix ? pathSegments.slice(1) : pathSegments;
 
-	upstreamUrl.pathname = [
-		upstreamUrl.pathname.replace(/\/+$/, ""),
-		...targetSegments.map((segment) => encodeURIComponent(decodeURIComponent(segment))),
-	]
-		.filter(Boolean)
-		.join("/");
-
-	if (!upstreamUrl.pathname.startsWith("/")) {
-		upstreamUrl.pathname = `/${upstreamUrl.pathname}`;
-	}
+	upstreamUrl.pathname = `/${targetSegments
+		.map((segment) => encodeURIComponent(decodeURIComponent(segment)))
+		.join("/")}`;
 
 	upstreamUrl.search = requestUrl.search;
 	return upstreamUrl;
@@ -48,26 +45,32 @@ function createProxyRequest(request: Request, upstreamUrl: URL): Request {
 	});
 }
 
-export default {
-	async fetch(request, env, ctx): Promise<Response> {
-		const requestUrl = new URL(request.url);
-		const routeName = requestUrl.pathname.split("/").filter(Boolean)[0];
+export function createWorker(config = defaultConfig): ProxyWorker {
+	return {
+		async fetch(request, env, ctx): Promise<Response> {
+			const requestUrl = new URL(request.url);
+			const routeName = requestUrl.pathname.split("/").filter(Boolean)[0];
+			const hasRoutes = config.routes.size > 0;
 
-		if (!routeName) {
-			return textResponse(
-				`Available routes: ${Array.from(routes.keys()).join(", ") || "(none)"}`,
-				200,
-			);
-		}
+			if (hasRoutes && !routeName) {
+				return textResponse(
+					`Available routes: ${Array.from(config.routes.keys()).join(", ")}`,
+					200,
+				);
+			}
 
-		const route = routes.get(routeName);
-		if (!route) {
-			return textResponse(`No proxy route configured for "${routeName}"`, 404);
-		}
+			const target = hasRoutes ? config.routes.get(routeName) : config.defaultTarget;
 
-		const upstreamUrl = buildProxyUrl(requestUrl, route);
-		const proxyRequest = createProxyRequest(request, upstreamUrl);
+			if (!target) {
+				return textResponse(`No proxy route configured for "${routeName}"`, 404);
+			}
 
-		return fetch(proxyRequest);
-	},
-} satisfies ExportedHandler<Env>;
+			const upstreamUrl = buildProxyUrl(requestUrl, target);
+			const proxyRequest = createProxyRequest(request, upstreamUrl);
+
+			return fetch(proxyRequest);
+		},
+	};
+}
+
+export default createWorker() satisfies ExportedHandler<Env>;

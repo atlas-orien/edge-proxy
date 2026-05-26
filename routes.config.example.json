@@ -1,0 +1,52 @@
+{
+	"_comment": "复制其中一种写法到 routes.config.json 使用。默认 protocol 是 http。singleTarget 是单目标模式，pathRoutes 是按路径前缀转发模式。",
+	"examples": {
+		"singleTarget": {
+			"ip": "1.85.61.130",
+			"port": 29001
+		},
+		"singleTargetHttps": {
+			"ip": "1.85.61.130",
+			"port": 443,
+			"protocol": "https"
+		},
+		"singleTargetByDomain": {
+			"ip": "api.example.com",
+			"port": 443,
+			"protocol": "https"
+		},
+		"pathRoutes": {
+			"ip": "1.85.61.130",
+			"port": 29001,
+			"routes": {
+				"api": {
+					"ip": "1.85.61.130",
+					"port": 29001
+				},
+				"file": {
+					"ip": "1.85.61.130",
+					"port": 29002
+				},
+				"auth": {
+					"ip": "1.85.61.130",
+					"port": 29202,
+					"stripPrefix": false
+				}
+			}
+		},
+		"pathRoutesOnly": {
+			"ip": "1.85.61.130",
+			"port": 29001,
+			"routes": {
+				"api": {
+					"ip": "1.85.61.130",
+					"port": 29001
+				},
+				"file": {
+					"ip": "1.85.61.130",
+					"port": 29002
+				}
+			}
+		}
+	}
+}
