@@ -1,6 +1,6 @@
 # Edge Proxy
 
-一个用 TypeScript 编写的 Cloudflare Workers 反向代理模板。这个项目保留了 Cloudflare CLI 生成的标准结构，并把上游 IP 和端口放在 `routes.config.json` 中。
+一个用 TypeScript 编写的 Cloudflare Workers 反向代理模板。这个项目保留了 Cloudflare CLI 生成的标准结构，可以通过 Cloudflare 环境变量或 `routes.config.json` 配置上游 IP 和端口。
 
 ## 项目结构
 
@@ -22,7 +22,39 @@
 
 ## 配置模式
 
-支持两种配置模式：单目标模式和路径路由模式。实际使用的配置文件是 `routes.config.json`。
+支持两种配置来源：Cloudflare 环境变量和 `routes.config.json`。如果配置了环境变量，环境变量优先；否则使用 `routes.config.json`。
+
+### Cloudflare 环境变量
+
+从 GitHub 导入 Worker 后，Cloudflare 会先按仓库内容构建一次。之后可以在 Cloudflare Dashboard 里修改变量：
+
+```text
+PROXY_IP=1.85.61.130
+PROXY_PORT=29202
+```
+
+如果目标是 HTTPS，可以再加：
+
+```text
+PROXY_PROTOCOL=https
+```
+
+修改变量后，需要重新部署一次 Worker。这样不需要在 Cloudflare 里编辑 `routes.config.json` 文件。
+
+`wrangler.jsonc` 里已经提供了默认变量，第一次构建可以直接通过：
+
+```json
+"vars": {
+	"PROXY_IP": "192.168.1.100",
+	"PROXY_PORT": "18080"
+}
+```
+
+### 配置文件
+
+`routes.config.json` 是仓库里的默认配置。没有设置环境变量时，Worker 会读取它。
+
+支持两种配置模式：单目标模式和路径路由模式。
 
 ### 单目标模式
 
@@ -124,7 +156,7 @@ pnpm test
 pnpm run deploy
 ```
 
-从 GitHub 创建 Worker 时，直接提交这个目录即可。Cloudflare 会读取 `wrangler.jsonc`，入口文件是 `src/index.ts`。
+从 GitHub 创建 Worker 时，直接提交这个目录即可。Cloudflare 会读取 `wrangler.jsonc`，入口文件是 `src/index.ts`。导入后如果要改目标服务，建议在 Cloudflare Dashboard 里修改 `PROXY_IP` 和 `PROXY_PORT` 变量，然后重新部署。
 
 ## 注意
 

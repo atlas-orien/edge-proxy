@@ -1,4 +1,4 @@
-import { loadConfig, type NormalizedTarget } from "./config";
+import { loadConfig, loadConfigFromEnv, type LoadedConfig, type NormalizedTarget } from "./config";
 
 const defaultConfig = loadConfig();
 
@@ -45,21 +45,22 @@ function createProxyRequest(request: Request, upstreamUrl: URL): Request {
 	});
 }
 
-export function createWorker(config = defaultConfig): ProxyWorker {
+export function createWorker(config?: LoadedConfig): ProxyWorker {
 	return {
 		async fetch(request, env, ctx): Promise<Response> {
+			const activeConfig = config ?? loadConfigFromEnv(env);
 			const requestUrl = new URL(request.url);
 			const routeName = requestUrl.pathname.split("/").filter(Boolean)[0];
-			const hasRoutes = config.routes.size > 0;
+			const hasRoutes = activeConfig.routes.size > 0;
 
 			if (hasRoutes && !routeName) {
 				return textResponse(
-					`Available routes: ${Array.from(config.routes.keys()).join(", ")}`,
+					`Available routes: ${Array.from(activeConfig.routes.keys()).join(", ")}`,
 					200,
 				);
 			}
 
-			const target = hasRoutes ? config.routes.get(routeName) : config.defaultTarget;
+			const target = hasRoutes ? activeConfig.routes.get(routeName) : activeConfig.defaultTarget;
 
 			if (!target) {
 				return textResponse(`No proxy route configured for "${routeName}"`, 404);

@@ -11,6 +11,12 @@ export interface ProxyConfig extends ProxyTarget {
 	routes?: Record<string, ProxyTarget>;
 }
 
+export interface ProxyEnv {
+	PROXY_IP?: string;
+	PROXY_PORT?: string;
+	PROXY_PROTOCOL?: "http" | "https";
+}
+
 export interface NormalizedTarget {
 	name: string;
 	url: URL;
@@ -48,4 +54,23 @@ export function loadConfig(config: ProxyConfig = rawConfig): LoadedConfig {
 		defaultTarget: normalizeTarget("default", config, false),
 		routes,
 	};
+}
+
+export function loadConfigFromEnv(env: ProxyEnv, fallback: ProxyConfig = rawConfig): LoadedConfig {
+	if (!env.PROXY_IP && !env.PROXY_PORT && !env.PROXY_PROTOCOL) {
+		return loadConfig(fallback);
+	}
+
+	const port = env.PROXY_PORT ? Number(env.PROXY_PORT) : fallback.port;
+
+	if (!Number.isInteger(port) || port < 1 || port > 65535) {
+		throw new Error(`Invalid PROXY_PORT: ${env.PROXY_PORT}`);
+	}
+
+	return loadConfig({
+		...fallback,
+		ip: env.PROXY_IP ?? fallback.ip,
+		port,
+		protocol: env.PROXY_PROTOCOL ?? fallback.protocol,
+	});
 }

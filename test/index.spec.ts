@@ -1,10 +1,8 @@
 import {
-	env,
 	createExecutionContext,
 	waitOnExecutionContext,
-	fetchMock,
 } from "cloudflare:test";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createWorker } from "../src/index";
 import { loadConfig } from "../src/config";
 
@@ -15,29 +13,48 @@ const singleTargetWorker = createWorker(
 		port: 29202,
 	}),
 );
+const testEnv = {} as Env;
+
+function mockFetch(expected: {
+	url: string;
+	method?: string;
+	body?: string;
+	responseBody: string;
+	status?: number;
+}) {
+	vi.stubGlobal(
+		"fetch",
+		vi.fn(async (input: RequestInfo | URL) => {
+			const request = new Request(input);
+
+			expect(request.url).toBe(expected.url);
+			expect(request.method).toBe(expected.method ?? "GET");
+
+			if (expected.body !== undefined) {
+				expect(await request.text()).toBe(expected.body);
+			}
+
+			return new Response(expected.responseBody, {
+				status: expected.status ?? 200,
+			});
+		}),
+	);
+}
 
 describe("edge proxy worker", () => {
-	beforeAll(() => {
-		fetchMock.activate();
-		fetchMock.disableNetConnect();
-	});
-
 	afterEach(() => {
-		fetchMock.assertNoPendingInterceptors();
+		vi.unstubAllGlobals();
 	});
 
 	it("proxies the root path to the configured target", async () => {
-		fetchMock
-			.get("http://1.85.61.130:29202")
-			.intercept({
-				path: "/",
-				method: "GET",
-			})
-			.reply(200, "root upstream");
+		mockFetch({
+			url: "http://1.85.61.130:29202/",
+			responseBody: "root upstream",
+		});
 
 		const request = new IncomingRequest("https://proxy.example.com/");
 		const ctx = createExecutionContext();
-		const response = await singleTargetWorker.fetch(request, env, ctx);
+		const response = await singleTargetWorker.fetch(request, testEnv, ctx);
 
 		await waitOnExecutionContext(ctx);
 
@@ -46,17 +63,14 @@ describe("edge proxy worker", () => {
 	});
 
 	it("keeps the request path and query string unchanged", async () => {
-		fetchMock
-			.get("http://1.85.61.130:29202")
-			.intercept({
-				path: "/users/profile?id=1",
-				method: "GET",
-			})
-			.reply(200, "path upstream");
+		mockFetch({
+			url: "http://1.85.61.130:29202/users/profile?id=1",
+			responseBody: "path upstream",
+		});
 
 		const request = new IncomingRequest("https://proxy.example.com/users/profile?id=1");
 		const ctx = createExecutionContext();
-		const response = await singleTargetWorker.fetch(request, env, ctx);
+		const response = await singleTargetWorker.fetch(request, testEnv, ctx);
 
 		await waitOnExecutionContext(ctx);
 
@@ -65,14 +79,12 @@ describe("edge proxy worker", () => {
 	});
 
 	it("forwards request bodies", async () => {
-		fetchMock
-			.get("http://1.85.61.130:29202")
-			.intercept({
-				path: "/login",
-				method: "POST",
-				body: JSON.stringify({ username: "demo" }),
-			})
-			.reply(200, "post upstream");
+		mockFetch({
+			url: "http://1.85.61.130:29202/login",
+			method: "POST",
+			body: JSON.stringify({ username: "demo" }),
+			responseBody: "post upstream",
+		});
 
 		const request = new IncomingRequest("https://proxy.example.com/login", {
 			method: "POST",
@@ -82,7 +94,7 @@ describe("edge proxy worker", () => {
 			},
 		});
 		const ctx = createExecutionContext();
-		const response = await singleTargetWorker.fetch(request, env, ctx);
+		const response = await singleTargetWorker.fetch(request, testEnv, ctx);
 
 		await waitOnExecutionContext(ctx);
 
@@ -108,17 +120,14 @@ describe("edge proxy worker", () => {
 			}),
 		);
 
-		fetchMock
-			.get("http://1.85.61.130:29002")
-			.intercept({
-				path: "/avatar.png",
-				method: "GET",
-			})
-			.reply(200, "file upstream");
+		mockFetch({
+			url: "http://1.85.61.130:29002/avatar.png",
+			responseBody: "file upstream",
+		});
 
 		const request = new IncomingRequest("https://proxy.example.com/file/avatar.png");
 		const ctx = createExecutionContext();
-		const response = await routedWorker.fetch(request, env, ctx);
+		const response = await routedWorker.fetch(request, testEnv, ctx);
 
 		await waitOnExecutionContext(ctx);
 
@@ -141,17 +150,14 @@ describe("edge proxy worker", () => {
 			}),
 		);
 
-		fetchMock
-			.get("http://1.85.61.130:29202")
-			.intercept({
-				path: "/auth/login",
-				method: "GET",
-			})
-			.reply(200, "auth upstream");
+		mockFetch({
+			url: "http://1.85.61.130:29202/auth/login",
+			responseBody: "auth upstream",
+		});
 
 		const request = new IncomingRequest("https://proxy.example.com/auth/login");
 		const ctx = createExecutionContext();
-		const response = await routedWorker.fetch(request, env, ctx);
+		const response = await routedWorker.fetch(request, testEnv, ctx);
 
 		await waitOnExecutionContext(ctx);
 
@@ -175,7 +181,7 @@ describe("edge proxy worker", () => {
 
 		const request = new IncomingRequest("https://proxy.example.com/missing/users");
 		const ctx = createExecutionContext();
-		const response = await routedWorker.fetch(request, env, ctx);
+		const response = await routedWorker.fetch(request, testEnv, ctx);
 
 		await waitOnExecutionContext(ctx);
 
