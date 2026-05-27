@@ -4,7 +4,7 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "edge-proxy",
+	"name": "task-agent",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-05-26",
 	"observability": {
